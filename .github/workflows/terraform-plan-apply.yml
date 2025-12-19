@@ -33,7 +33,7 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.working-directory }}
-    
+
     outputs:
       plan-exit-code: ${{ steps.plan.outputs.exitcode }}
 
@@ -95,10 +95,10 @@ jobs:
             #### Terraform Init: \`${{ steps.init.outcome }}\`
             #### Terraform Validate: \`${{ steps.validate.outcome }}\`
             #### Terraform Plan: \`${{ steps.plan.outcome }}\`
-            
+
             *Environment: \`${{ inputs.environment }}\`*
             *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
