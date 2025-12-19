@@ -80,15 +80,15 @@ jobs:
       - name: Deploy with Helm
         run: |
           HELM_ARGS="--namespace ${{ inputs.namespace }} --wait --timeout 5m"
-          
+
           if [ -n "${{ inputs.values-file }}" ]; then
             HELM_ARGS="$HELM_ARGS -f ${{ inputs.values-file }}"
           fi
-          
+
           if [ -n "${{ inputs.image-tag }}" ]; then
             HELM_ARGS="$HELM_ARGS --set image.tag=${{ inputs.image-tag }}"
           fi
-          
+
           helm upgrade --install ${{ inputs.release-name }} ${{ inputs.helm-chart }} $HELM_ARGS
 
       - name: Verify deployment
