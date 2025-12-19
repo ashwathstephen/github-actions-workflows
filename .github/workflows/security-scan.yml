@@ -1,0 +1,89 @@
+name: Security Scan
+
+on:
+  workflow_call:
+    inputs:
+      scan-type:
+        description: 'Type of scan (all, sast, container, dependency)'
+        default: 'all'
+        type: string
+      image-name:
+        description: 'Container image to scan'
+        default: ''
+        type: string
+      fail-on-high:
+        description: 'Fail on high severity vulnerabilities'
+        default: true
+        type: boolean
+      fail-on-critical:
+        description: 'Fail on critical severity vulnerabilities'
+        default: true
+        type: boolean
+
+jobs:
+  sast:
+    if: inputs.scan-type == 'all' || inputs.scan-type == 'sast'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: auto
+          generateSarif: true
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: semgrep.sarif
+
+  container:
+    if: (inputs.scan-type == 'all' || inputs.scan-type == 'container') && inputs.image-name != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ inputs.image-name }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: ${{ inputs.fail-on-critical && '1' || '0' }}
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  dependency:
+    if: inputs.scan-type == 'all' || inputs.scan-type == 'dependency'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Dependency Review
+        uses: actions/dependency-review-action@v3
+        with:
+          fail-on-severity: ${{ inputs.fail-on-high && 'high' || 'critical' }}
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript,python
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+

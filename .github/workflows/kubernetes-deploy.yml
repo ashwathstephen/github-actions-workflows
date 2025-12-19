@@ -1,0 +1,105 @@
+name: Kubernetes Deploy
+
+on:
+  workflow_call:
+    inputs:
+      cluster-name:
+        description: 'Kubernetes cluster name'
+        required: true
+        type: string
+      namespace:
+        description: 'Kubernetes namespace'
+        required: true
+        type: string
+      helm-chart:
+        description: 'Path to Helm chart'
+        required: true
+        type: string
+      release-name:
+        description: 'Helm release name'
+        required: true
+        type: string
+      values-file:
+        description: 'Path to values file'
+        default: ''
+        type: string
+      image-tag:
+        description: 'Docker image tag to deploy'
+        default: ''
+        type: string
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: string
+    secrets:
+      aws-access-key-id:
+        required: false
+      aws-secret-access-key:
+        required: false
+      kubeconfig:
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        if: secrets.aws-access-key-id != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws-access-key-id }}
+          aws-secret-access-key: ${{ secrets.aws-secret-access-key }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig for EKS
+        if: secrets.aws-access-key-id != ''
+        run: |
+          aws eks update-kubeconfig --name ${{ inputs.cluster-name }} --region us-east-1
+
+      - name: Set up kubeconfig
+        if: secrets.kubeconfig != ''
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.kubeconfig }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.13.0'
+
+      - name: Create namespace
+        run: |
+          kubectl create namespace ${{ inputs.namespace }} --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy with Helm
+        run: |
+          HELM_ARGS="--namespace ${{ inputs.namespace }} --wait --timeout 5m"
+          
+          if [ -n "${{ inputs.values-file }}" ]; then
+            HELM_ARGS="$HELM_ARGS -f ${{ inputs.values-file }}"
+          fi
+          
+          if [ -n "${{ inputs.image-tag }}" ]; then
+            HELM_ARGS="$HELM_ARGS --set image.tag=${{ inputs.image-tag }}"
+          fi
+          
+          helm upgrade --install ${{ inputs.release-name }} ${{ inputs.helm-chart }} $HELM_ARGS
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/${{ inputs.release-name }} -n ${{ inputs.namespace }} --timeout=5m
+
+      - name: Get deployment info
+        run: |
+          echo "Pods:"
+          kubectl get pods -n ${{ inputs.namespace }} -l app.kubernetes.io/instance=${{ inputs.release-name }}
+          echo ""
+          echo "Services:"
+          kubectl get svc -n ${{ inputs.namespace }} -l app.kubernetes.io/instance=${{ inputs.release-name }}
+
