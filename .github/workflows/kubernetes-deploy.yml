@@ -102,4 +102,3 @@ jobs:
           echo ""
           echo "Services:"
           kubectl get svc -n ${{ inputs.namespace }} -l app.kubernetes.io/instance=${{ inputs.release-name }}
-

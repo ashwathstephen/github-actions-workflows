@@ -88,4 +88,3 @@ jobs:
             ${{ inputs.working-directory }}/coverage.xml
             ${{ inputs.working-directory }}/htmlcov/
           retention-days: 7
-

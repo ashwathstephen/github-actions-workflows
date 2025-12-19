@@ -90,4 +90,3 @@ jobs:
           name: coverage-report
           path: ${{ inputs.working-directory }}/coverage/
           retention-days: 7
-
